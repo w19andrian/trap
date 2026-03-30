@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"slices"
 	"time"
 
 	"charm.land/bubbles/v2/textarea"
@@ -25,6 +26,7 @@ const (
 type tabType string
 
 const (
+	newTab   tabType = "new-tab"
 	toDoList tabType = "to-do-list"
 	radio    tabType = "radio"
 )
@@ -52,7 +54,7 @@ type taskModel struct {
 	taskIdx  int
 }
 
-func getDateString(t time.Time) string { return t.Format("21-11-1998") }
+func getDateString(t time.Time) string { return t.Format(time.DateOnly) }
 
 func initTaskModel(inv *inventory.Inventory) taskModel {
 	if err := inv.Migrate(); err != nil {
@@ -70,6 +72,7 @@ func initTaskModel(inv *inventory.Inventory) taskModel {
 func initModel(inv *inventory.Inventory) model {
 	return model{
 		inventory: inv,
+		tabs:      []tab{{tabType: toDoList, name: "default"}},
 		task:      initTaskModel(inv),
 		txtInput:  textinput.New(),
 		txtArea:   textarea.New(),
@@ -120,8 +123,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if app.dateIdx < len(app.dates)-1 {
 						app.dateIdx++
 					}
-				case "enter":
-					app.mode = viewMode
+				case "n":
+					app.mode = createMode
 				}
 			case viewMode:
 				switch key {
@@ -219,19 +222,19 @@ func getTasks(inv *inventory.Inventory) (taskModel, error) {
 		return taskModel{}, err
 	}
 
-	var dateTasks map[string][]inventory.Task
+	dateTasks := make(map[string][]inventory.Task)
 	for _, v := range tasks {
 		dateTasks[getDateString(v.CreatedAt)] = append(dateTasks[getDateString(v.CreatedAt)], v)
 	}
 
-	var dates []string
-	for v := range maps.Keys(dateTasks) {
-		dates = append(dates, v)
+	today := getDateString(time.Now())
+	if _, ok := dateTasks[today]; !ok {
+		dateTasks[today] = make([]inventory.Task, 0)
 	}
 
 	return taskModel{
 		mode:  listDates,
-		dates: dates,
+		dates: slices.Collect(maps.Keys(dateTasks)),
 		tasks: dateTasks,
 	}, nil
 }
@@ -246,6 +249,25 @@ func (m model) View() tea.View {
 		}
 		s += fmt.Sprintf("%s %s\n", cursor, dates)
 	}
+
+	tasks := m.task.tasks[m.task.dates[m.task.dateIdx]]
+	if len(tasks) == 0 {
+		s += fmt.Sprint("No tasks for today(yet). Press 'n' to create a new task\n")
+	}
+
+	for i, task := range tasks {
+		cursor := " "
+		done := " "
+		if m.task.taskIdx == i {
+			cursor = "~>"
+		}
+
+		if task.IsDone {
+			done = "x"
+		}
+		s += fmt.Sprintf("\t%s [%s] - %s\n", cursor, done, task.Title)
+	}
+
 	return tea.NewView(s)
 }
 
