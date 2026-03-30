@@ -13,12 +13,13 @@ type keyMap struct {
 	nextTab key.Binding
 	prevTab key.Binding
 
-	newItem  key.Binding
-	editItem key.Binding
-	delItem  key.Binding
-
 	nextElement key.Binding
 	prevElement key.Binding
+
+	newItem  key.Binding
+	editItem key.Binding
+	saveItem key.Binding
+	markItem key.Binding
 }
 
 var defaultKeyMap = keyMap{
@@ -61,5 +62,24 @@ var defaultKeyMap = keyMap{
 	prevElement: key.NewBinding(
 		key.WithKeys("shift+tab"),
 		key.WithHelp("shift+tab", "select previous available element"),
+	),
+}
+
+var tdlKeyMap = keyMap{
+	newItem: key.NewBinding(
+		key.WithKeys("n"),
+		key.WithHelp("n", "create a new task for today"),
+	),
+	editItem: key.NewBinding(
+		key.WithKeys("e"),
+		key.WithHelp("e", "edit currently highlighted task"),
+	),
+	saveItem: key.NewBinding(
+		key.WithKeys("ctrl+s"),
+		key.WithHelp("ctrl+s", "save task"),
+	),
+	markItem: key.NewBinding(
+		key.WithKeys(" "),
+		key.WithHelp("space", "mark task (un)done"),
 	),
 }
