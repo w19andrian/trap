@@ -16,21 +16,21 @@ type Radio struct {
 
 const schema = `
 	CREATE TABLE IF NOT EXISTS tasks (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	id INTEGER PRIMARY KEY,
 	title TEXT  NOT NULL,
 	description TEXT,
 	done BOOLEAN NOT NULL,
-	created_at DATETIME,
-	last_modified DATETIME
+	created_at INTEGER,
+	last_modified INTEGER
 	);
 	CREATE TABLE IF NOT EXISTS radio_providers (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	id INTEGER PRIMARY KEY,
 	name TEXT NOT NULL,
 	uri TEXT NOT NULL,
 	active BOOLEAN NOT NULL
 	);
 	CREATE TABLE IF NOT EXISTS tabs (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	id INTEGER PRIMARY KEY,
 	name TEXT NOT NULL,
 	active BOOLEAN NOT NULL
 	)
