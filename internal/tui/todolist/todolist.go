@@ -135,6 +135,7 @@ func (m *Model) Update(msg tea.Msg, db *inventory.Inventory) tea.Cmd {
 				m.mode = editTask
 			case key.Matches(msg, keys.DefaultKeyMap.Esc):
 				m.current = inventory.Task{}
+
 				m.mode = listDates
 			}
 		case newTask:
