@@ -11,3 +11,13 @@ A terminal UI (TUI) app that combines productivity tools with a radio player —
 
 - **Go** 1.25.8+
 - **mpv** — must be installed and available in your `PATH` for radio streaming
+
+## TODO
+- [ ] keymap info
+- [ ] status info
+- [ ] print error
+- [ ] compositor
+- [ ] horizontal scroll instead of wrapping on both header and body
+- [ ] colour scheme
+- [ ] mpv interface
+- [ ] soundcloud wireframe
