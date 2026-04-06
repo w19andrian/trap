@@ -13,11 +13,15 @@ A terminal UI (TUI) app that combines productivity tools with a radio player —
 - **mpv** — must be installed and available in your `PATH` for radio streaming
 
 ## TODO
-- [ ] keymap info
-- [ ] status info
-- [ ] print error
-- [ ] compositor
-- [ ] horizontal scroll instead of wrapping on both header and body
-- [ ] colour scheme
+- [x] todolist page wireframe
+- [x] basic todolist functionality
+- [ ] fix clippping when window is resized smaller
+- [ ] add keymap info in header
+- [ ] anything else can be included into header?
 - [ ] mpv interface
-- [ ] soundcloud wireframe
+- [ ] status line for messages(e.g errors)
+- [ ] compositor for dialog boxes, background image(?)
+- [ ] colour scheme
+- [ ] soundcloud interface for search and fetching media uri
+- [ ] mpv interface for playback and controls
+- [ ] radio page wireframe

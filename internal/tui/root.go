@@ -51,9 +51,24 @@ func defaultStyles(h, w int) *Styles {
 	s.borderColor = lipgloss.Color("#5D92D4")
 
 	s.header = lipgloss.NewStyle().Height(7).Width(w)
-	s.logoBlock = lipgloss.NewStyle().Width(min(26, w-26)).Height(s.header.GetHeight()).AlignHorizontal(lipgloss.Right).Padding(0, 1).Foreground(s.borderColor).AlignVertical(lipgloss.Bottom)
-	s.infoBlock = lipgloss.NewStyle().Width(min(50, w-50)).Height(s.header.GetHeight()).AlignVertical(lipgloss.Center).AlignHorizontal(lipgloss.Left)
-	s.keyMapBlock = lipgloss.NewStyle().Height(s.header.GetHeight()).Width(w - s.infoBlock.GetWidth() - s.logoBlock.GetWidth()).AlignVertical(lipgloss.Center).AlignHorizontal(lipgloss.Center)
+
+	s.logoBlock = lipgloss.NewStyle().
+		Width(min(26, w-26)).
+		Height(s.header.GetHeight()).
+		AlignHorizontal(lipgloss.Right).
+		Padding(0, 1).
+		Foreground(s.borderColor).
+		AlignVertical(lipgloss.Bottom)
+	s.infoBlock = lipgloss.NewStyle().
+		Width(min(50, w-50)).
+		Height(s.header.GetHeight()).
+		AlignVertical(lipgloss.Center).
+		AlignHorizontal(lipgloss.Left)
+	s.keyMapBlock = lipgloss.NewStyle().
+		Height(s.header.GetHeight()).
+		Width(w - s.infoBlock.GetWidth() - s.logoBlock.GetWidth()).
+		AlignVertical(lipgloss.Center).
+		AlignHorizontal(lipgloss.Center)
 
 	s.status = lipgloss.NewStyle().Height(1).Width(w).Foreground(s.borderColor)
 
@@ -68,7 +83,11 @@ func defaultStyles(h, w int) *Styles {
 	headerTotal := s.header.GetHeight() + headerVerticalFrame
 	statusTotal := s.status.GetHeight() + s.status.GetVerticalFrameSize()
 
-	s.body = lipgloss.NewStyle().Height(h - headerTotal - statusTotal).Width(w).Border(lipgloss.NormalBorder()).BorderForeground(s.borderColor)
+	s.body = lipgloss.NewStyle().
+		Height(h - headerTotal - statusTotal).
+		Width(w).
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(s.borderColor)
 
 	return s
 }

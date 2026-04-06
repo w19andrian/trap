@@ -56,19 +56,20 @@ func InitToDoList(db *inventory.Inventory) (*Model, error) {
 	m.focus = make(map[focusMode]int)
 	m.mode = listDates
 
+	m.style = DefaultStyle()
+
 	m.title = textinput.New()
 	m.title.CharLimit = 100
-	m.title.SetWidth(70)
+	m.title.SetWidth(m.style.inputField.GetWidth())
 	m.title.Placeholder = "New title for your to-do-list"
 	m.title.Prompt = ""
 
 	m.description = textarea.New()
 	m.description.ShowLineNumbers = false
 	m.description.CharLimit = 300
+	m.description.SetWidth(m.style.inputField.GetWidth() - m.style.inputField.GetHorizontalFrameSize())
 
 	m.tasksViewPort = viewport.New()
-
-	m.style = DefaultStyle()
 
 	return m, nil
 }
@@ -95,7 +96,7 @@ func (m *Model) Update(msg tea.Msg, db *inventory.Inventory) tea.Cmd {
 		switch m.mode {
 		case listDates:
 			switch {
-			case key.Matches(msg, tdlKeyMap.NewItem):
+			case key.Matches(msg, keys.DefaultKeyMap.NewItem):
 				m.current = inventory.Task{}
 
 				m.prepareInput()
@@ -134,7 +135,7 @@ func (m *Model) Update(msg tea.Msg, db *inventory.Inventory) tea.Cmd {
 					m.current = m.tasks[currDate][m.focus[viewTasks]]
 					m.syncViewport()
 				}
-			case key.Matches(msg, tdlKeyMap.MarkItem):
+			case key.Matches(msg, keys.DefaultKeyMap.MarkItem):
 				m.current.IsDone = !m.current.IsDone
 
 				if err := m.save(db); err != nil {
@@ -148,7 +149,7 @@ func (m *Model) Update(msg tea.Msg, db *inventory.Inventory) tea.Cmd {
 				currDate = m.dates[m.focus[listDates]]
 				m.current = m.tasks[currDate][m.focus[viewTasks]]
 
-			case key.Matches(msg, tdlKeyMap.EditItem):
+			case key.Matches(msg, keys.DefaultKeyMap.EditItem):
 				m.current = m.tasks[currDate][m.focus[viewTasks]]
 
 				m.prepareInput()
@@ -204,7 +205,7 @@ func (m *Model) Update(msg tea.Msg, db *inventory.Inventory) tea.Cmd {
 					m.title.Focus()
 					m.description.Blur()
 				}
-			case key.Matches(msg, tdlKeyMap.SaveItem):
+			case key.Matches(msg, keys.DefaultKeyMap.SaveItem):
 				m.title.Blur()
 				m.description.Blur()
 
@@ -222,7 +223,6 @@ func (m *Model) Update(msg tea.Msg, db *inventory.Inventory) tea.Cmd {
 				if err := m.refresh(db); err != nil {
 					m.err = err
 				}
-				m.current = inventory.Task{}
 
 				m.mode = viewTasks
 			case key.Matches(msg, keys.DefaultKeyMap.Esc):
@@ -254,7 +254,7 @@ func (m *Model) renderSideBar() string {
 
 		builder.WriteString(stringNewLine(getDateString(date)))
 	}
-	return m.style.sideBar.Render(builder.String())
+	return m.style.sidebar.Render(builder.String())
 }
 
 func (m *Model) renderTasksMenu() string {
@@ -306,26 +306,43 @@ func (m *Model) renderDetailsMenu() string {
 		return m.style.detailsMenu.BorderLeft(false).Render("")
 	}
 
-	header := m.style.detailsHeader.Render(lipgloss.Wrap(
-		m.current.Title,
-		m.style.detailsMenu.GetWidth(),
-		""),
+	header := m.style.detailsHeader.Render(
+		lipgloss.Wrap(
+			m.current.Title,
+			m.style.detailsHeader.GetWidth(),
+			" ",
+		),
 	)
 
 	if m.current.Description == "" {
 		m.current.Description = "(empty description)"
 	}
-	body := m.style.detailsBody.Render(
-		lipgloss.Wrap(m.current.Description, m.style.detailsMenu.GetWidth(), ""),
-	)
 
-	footer := m.style.detailsFooter.Render(
-		fmt.Sprintf(
-			"%s: %s\n%s: %s",
-			m.style.FieldNameFormat.Render("Created At"), getDateTimeString(m.current.CreatedAt),
-			m.style.FieldNameFormat.Render("Last Modified"), getDateTimeString(m.current.LastModified),
+	body := m.style.detailsBody.Render(
+		lipgloss.Wrap(
+			m.current.Description,
+			m.style.detailsBody.GetWidth(),
+			" ",
 		),
 	)
+
+	builder := new(strings.Builder)
+
+	fmt.Fprintf(
+		builder,
+		"%s: %s\n",
+		m.style.FieldNameFormat.Render("Created At"),
+		getDateTimeString(m.current.CreatedAt),
+	)
+
+	fmt.Fprintf(
+		builder,
+		"%s: %s",
+		m.style.FieldNameFormat.Render("Last Modified"),
+		getDateTimeString(m.current.LastModified),
+	)
+
+	footer := m.style.detailsFooter.Render(stringNewLine(builder.String()))
 
 	return m.style.detailsMenu.Render(lipgloss.JoinVertical(
 		lipgloss.Left,

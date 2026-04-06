@@ -17,7 +17,7 @@ type Styles struct {
 	inputField      lipgloss.Style
 	FieldNameFormat lipgloss.Style
 
-	sideBar        lipgloss.Style
+	sidebar        lipgloss.Style
 	sidebarFocused lipgloss.Style
 
 	tasksMenu   lipgloss.Style
@@ -53,24 +53,78 @@ func (s *Styles) refresh() {
 	s.colorbgFocus = lipgloss.Color("#FFFFFF")
 	s.colorFgFocus = lipgloss.Color("#000000")
 
-	s.inputField = lipgloss.NewStyle().BorderForeground(s.colorBorder).Width(70).BorderStyle(lipgloss.NormalBorder())
+	s.inputField = lipgloss.NewStyle().
+		BorderForeground(s.colorBorder).
+		Width(70).
+		BorderStyle(lipgloss.NormalBorder())
+
 	s.FieldNameFormat = lipgloss.NewStyle().Bold(true).Underline(true)
 
-	s.sideBar = lipgloss.NewStyle().BorderForeground(s.colorBorder).Width(calculateSize(s.width, 15)).Height(s.height).BorderStyle(lipgloss.NormalBorder()).BorderRight(true).Align(lipgloss.Center)
-	s.sidebarFocused = lipgloss.NewStyle().Foreground(s.colorFgFocus).Background(s.colorbgFocus).Width(s.sideBar.GetWidth() - s.sideBar.GetHorizontalFrameSize()).Align(lipgloss.Center)
+	s.sidebar = lipgloss.NewStyle().
+		BorderForeground(s.colorBorder).
+		Width(calculateSize(s.width, 15)).
+		Height(s.height).
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderRight(true).
+		Align(lipgloss.Center)
+	s.sidebarFocused = lipgloss.NewStyle().
+		Foreground(s.colorFgFocus).
+		Background(s.colorbgFocus).
+		Width(s.sidebar.GetWidth() - s.sidebar.GetHorizontalFrameSize()).
+		Align(lipgloss.Center)
 
-	sideBarTotal := s.sideBar.GetWidth() + s.sideBar.GetHorizontalFrameSize()
+	sidebarTotal := s.sidebar.GetWidth() + s.sidebar.GetHorizontalFrameSize()
 
-	s.tasksMenu = lipgloss.NewStyle().Width(calculateSize(s.width, 60)).MarginLeft(1).Height(s.height)
+	s.tasksMenu = lipgloss.NewStyle().
+		Width(calculateSize(s.width, 57)).
+		MarginLeft(1).
+		Height(s.height)
 	s.task = lipgloss.NewStyle().Width(s.tasksMenu.GetWidth()).Height(1)
-	s.taskFocused = lipgloss.NewStyle().Width(s.tasksMenu.GetWidth() - s.tasksMenu.GetHorizontalFrameSize()).Background(s.colorbgFocus).Foreground(s.colorFgFocus).AlignVertical(0.5).Height(1)
+	s.taskFocused = lipgloss.NewStyle().
+		Width(s.tasksMenu.GetWidth() - s.tasksMenu.GetHorizontalFrameSize()).
+		Background(s.colorbgFocus).
+		Foreground(s.colorFgFocus).
+		AlignVertical(0.5).
+		Height(1)
 
 	tasksMenuTotal := s.tasksMenu.GetWidth() + s.tasksMenu.GetHorizontalFrameSize()
 
-	s.detailsMenu = lipgloss.NewStyle().Width(s.width - sideBarTotal - tasksMenuTotal).Height(s.height).BorderStyle(lipgloss.NormalBorder()).BorderForeground(s.colorBorder).BorderLeft(true)
-	s.detailsHeader = lipgloss.NewStyle().Height(2)
-	s.detailsFooter = lipgloss.NewStyle().Height(3)
-	s.detailsBody = lipgloss.NewStyle().Height(s.detailsMenu.GetHeight() - s.detailsHeader.GetHeight() - s.detailsFooter.GetHeight()).Align(lipgloss.Left)
+	s.detailsMenu = lipgloss.NewStyle().
+		Width(s.width - sidebarTotal - tasksMenuTotal).
+		Height(s.height).
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(s.colorBorder).
+		BorderLeft(true)
+
+	dmw := s.detailsMenu.GetWidth() - s.detailsMenu.GetHorizontalFrameSize()
+
+	s.detailsHeader = lipgloss.NewStyle().
+		AlignVertical(lipgloss.Center).
+		Width(dmw).
+		MaxWidth(dmw).
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderBottom(true).
+		BorderForeground(s.colorBorder).
+		Height(5 + s.detailsHeader.GetVerticalFrameSize()).
+		MaxHeight(5 + s.detailsHeader.GetVerticalFrameSize())
+
+	s.detailsFooter = lipgloss.NewStyle().
+		AlignVertical(lipgloss.Bottom).
+		Width(dmw).
+		MaxWidth(dmw).
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(s.colorBorder).
+		BorderTop(true).
+		Height(2)
+
+	dmh := s.detailsMenu.GetHeight() + s.detailsMenu.GetVerticalFrameSize()
+	dhh := s.detailsHeader.GetHeight() + s.detailsHeader.GetVerticalFrameSize()
+	dfh := s.detailsFooter.GetHeight() + s.detailsFooter.GetVerticalFrameSize()
+
+	s.detailsBody = lipgloss.NewStyle().
+		Height(dmh - dhh - dfh).
+		Width(dmw).
+		AlignVertical(lipgloss.Center)
 }
 
 func calculateSize(a int, r int) int { return int((float32(r) / 100.0) * float32(a)) }
