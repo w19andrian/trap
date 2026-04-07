@@ -1,6 +1,6 @@
 # trap
 
-A terminal UI (TUI) app that combines productivity tools with a radio player — all in one place.
+A terminal UI (TUI) app that combines productivity tools with a radio player
 
 ## Features
 
