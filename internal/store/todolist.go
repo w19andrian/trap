@@ -1,4 +1,4 @@
-package inventory
+package store
 
 import (
 	"time"
@@ -13,7 +13,7 @@ type Task struct {
 	LastModified time.Time
 }
 
-func (c *Inventory) GetTasks() ([]Task, error) {
+func (c *DB) GetTasks() ([]Task, error) {
 	rows, err := c.db.Query("SELECT id,title,description,done,created_at,last_modified FROM tasks")
 	if err != nil {
 		return nil, err
@@ -45,7 +45,7 @@ func (c *Inventory) GetTasks() ([]Task, error) {
 	return tasks, nil
 }
 
-func (c *Inventory) SaveTask(t Task) error {
+func (c *DB) SaveTask(t Task) error {
 	upsertQuery := `
 		INSERT INTO tasks(id,title,description,done,created_at,last_modified)
 		VALUES(?,?,?,?,?,?) ON CONFLICT (id) DO UPDATE

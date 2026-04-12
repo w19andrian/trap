@@ -4,12 +4,12 @@ import (
 	"log"
 
 	tea "charm.land/bubbletea/v2"
-	"repo.home.wmpandrian.dev/wmp/trap/internal/inventory"
+	"repo.home.wmpandrian.dev/wmp/trap/internal/store"
 	"repo.home.wmpandrian.dev/wmp/trap/internal/tui"
 )
 
 func main() {
-	db, err := inventory.Init("./app.db")
+	db, err := store.Init("./app.db")
 	if err != nil {
 		log.Fatal(err)
 	}

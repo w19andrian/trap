@@ -1,4 +1,4 @@
-package inventory
+package store
 
 type Tab struct {
 	ID       int64
@@ -6,7 +6,7 @@ type Tab struct {
 	IsActive bool
 }
 
-func (c *Inventory) GetAllTabs() ([]Tab, error) {
+func (c *DB) GetAllTabs() ([]Tab, error) {
 	rows, err := c.db.Query("SELECT id,name,active FROM tabs")
 	if err != nil {
 		return nil, err
@@ -30,7 +30,7 @@ func (c *Inventory) GetAllTabs() ([]Tab, error) {
 	return tabs, nil
 }
 
-func (c *Inventory) SaveTab(t Tab) error {
+func (c *DB) SaveTab(t Tab) error {
 	upsertQuery := `
 		INSERT INTO tasks(id,name,active)
 		VALUES(?,?,?) ON CONFLICT (id) DO UPDATE
