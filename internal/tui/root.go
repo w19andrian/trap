@@ -9,9 +9,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"repo.home.wmpandrian.dev/wmp/trap/internal/inventory"
+	"repo.home.wmpandrian.dev/wmp/trap/internal/store"
 	"repo.home.wmpandrian.dev/wmp/trap/internal/tui/keys"
-	"repo.home.wmpandrian.dev/wmp/trap/internal/tui/todolist"
+	"repo.home.wmpandrian.dev/wmp/trap/internal/tui/panels/todolist"
 )
 
 const logo = `⢀⣠⣴⣶⣶⣾⣿⣿⣶⣶⣦⣤⡀
@@ -28,12 +28,12 @@ const textLogo = `▗
 
 type Model struct {
 	tdl *todolist.Model
-	db  *inventory.Inventory
+	db  *store.DB
 
-	style *Styles
+	style *Style
 }
 
-type Styles struct {
+type Style struct {
 	borderColor color.Color
 
 	header      lipgloss.Style
@@ -45,8 +45,8 @@ type Styles struct {
 	status lipgloss.Style
 }
 
-func defaultStyles(h, w int) *Styles {
-	s := new(Styles)
+func defaultStyle(h, w int) *Style {
+	s := new(Style)
 
 	s.borderColor = lipgloss.Color("#5D92D4")
 
@@ -92,7 +92,7 @@ func defaultStyles(h, w int) *Styles {
 	return s
 }
 
-func InitModel(db *inventory.Inventory) (Model, error) {
+func InitModel(db *store.DB) (Model, error) {
 	if err := db.Migrate(); err != nil {
 		return Model{}, fmt.Errorf("error migrating database: %w", err)
 	}
@@ -105,7 +105,7 @@ func InitModel(db *inventory.Inventory) (Model, error) {
 	return Model{
 		db:    db,
 		tdl:   tdl,
-		style: defaultStyles(0, 0),
+		style: defaultStyle(0, 0),
 	}, nil
 }
 
@@ -114,7 +114,7 @@ func (m Model) Init() tea.Cmd { return nil }
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.style = defaultStyles(msg.Height, msg.Width)
+		m.style = defaultStyle(msg.Height, msg.Width)
 		m.tdl.UpdateStyle(
 			m.style.body.GetHeight()-m.style.body.GetVerticalFrameSize(),
 			m.style.body.GetWidth()-m.style.body.GetHorizontalFrameSize(),
@@ -154,5 +154,3 @@ func (m Model) renderHeader() string {
 		m.style.logoBlock.Render(logos),
 	)
 }
-
-// func getFinalSize(h int, r int) int { return int(float32(r) / float32(100) * float32(h)) }

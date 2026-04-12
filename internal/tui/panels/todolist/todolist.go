@@ -1,6 +1,8 @@
+// Package todolist is the to-do-list panel for trap
 package todolist
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -14,15 +16,15 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"repo.home.wmpandrian.dev/wmp/trap/internal/inventory"
+	"repo.home.wmpandrian.dev/wmp/trap/internal/store"
 	"repo.home.wmpandrian.dev/wmp/trap/internal/tui/keys"
 )
 
 type focusMode string
 
 const (
-	listDates focusMode = "list-dates"
-	viewTasks focusMode = "view-task"
+	sideBar   focusMode = "list-dates"
+	tasksView focusMode = "view-task"
 	editTask  focusMode = "edit-task"
 	newTask   focusMode = "new-task"
 )
@@ -35,18 +37,18 @@ type inputField struct {
 type Model struct {
 	mode    focusMode
 	dates   []time.Time
-	tasks   map[time.Time][]inventory.Task
-	current inventory.Task
+	tasks   map[time.Time][]store.Task
+	current store.Task
 	focus   map[focusMode]int
 	err     error
-	style   *Styles
+	style   *Style
 
 	tasksViewPort viewport.Model
 
 	inputField
 }
 
-func InitToDoList(db *inventory.Inventory) (*Model, error) {
+func InitToDoList(db *store.DB) (*Model, error) {
 	m := new(Model)
 
 	if err := m.refresh(db); err != nil {
@@ -54,7 +56,7 @@ func InitToDoList(db *inventory.Inventory) (*Model, error) {
 	}
 
 	m.focus = make(map[focusMode]int)
-	m.mode = listDates
+	m.mode = sideBar
 
 	m.style = DefaultStyle()
 
@@ -74,7 +76,7 @@ func InitToDoList(db *inventory.Inventory) (*Model, error) {
 	return m, nil
 }
 
-func (m *Model) Update(msg tea.Msg, db *inventory.Inventory) tea.Cmd {
+func (m *Model) Update(msg tea.Msg, db *store.DB) tea.Cmd {
 	var cmd tea.Cmd
 	cmds := make([]tea.Cmd, 0)
 
@@ -94,144 +96,168 @@ func (m *Model) Update(msg tea.Msg, db *inventory.Inventory) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch m.mode {
-		case listDates:
-			switch {
-			case key.Matches(msg, keys.DefaultKeyMap.NewItem):
-				m.current = inventory.Task{}
-
-				m.prepareInput()
-
-				m.mode = newTask
-			case key.Matches(msg, keys.DefaultKeyMap.Up):
-				if m.focus[listDates] > 0 {
-					m.focus[listDates]--
-				}
-			case key.Matches(msg, keys.DefaultKeyMap.Down):
-				if m.focus[listDates] < len(m.dates)-1 {
-					m.focus[listDates]++
-				}
-			case key.Matches(msg, keys.DefaultKeyMap.Right, keys.DefaultKeyMap.Confirm):
-				currDate := m.dates[m.focus[listDates]]
-
-				if len(m.tasks[currDate]) != 0 {
-					m.current = m.tasks[currDate][0]
-					m.focus[viewTasks] = 0
-					m.mode = viewTasks
-				}
-			}
-		case viewTasks:
-			currDate := m.dates[m.focus[listDates]]
-
-			switch {
-			case key.Matches(msg, keys.DefaultKeyMap.Up):
-				if m.focus[viewTasks] > 0 {
-					m.focus[viewTasks]--
-					m.current = m.tasks[currDate][m.focus[viewTasks]]
-					m.syncViewport()
-				}
-			case key.Matches(msg, keys.DefaultKeyMap.Down):
-				if m.focus[viewTasks] < len(m.tasks[currDate])-1 {
-					m.focus[viewTasks]++
-					m.current = m.tasks[currDate][m.focus[viewTasks]]
-					m.syncViewport()
-				}
-			case key.Matches(msg, keys.DefaultKeyMap.MarkItem):
-				m.current.IsDone = !m.current.IsDone
-
-				if err := m.save(db); err != nil {
-					m.err = err
-				}
-
-				if err := m.refresh(db); err != nil {
-					m.err = err
-				}
-
-				currDate = m.dates[m.focus[listDates]]
-				m.current = m.tasks[currDate][m.focus[viewTasks]]
-
-			case key.Matches(msg, keys.DefaultKeyMap.EditItem):
-				m.current = m.tasks[currDate][m.focus[viewTasks]]
-
-				m.prepareInput()
-
-				m.mode = editTask
-			case key.Matches(msg, keys.DefaultKeyMap.Left, keys.DefaultKeyMap.Esc):
-				m.current = inventory.Task{}
-
-				m.mode = listDates
-			}
+		case sideBar:
+			m.sideBarHandler(msg)
+		case tasksView:
+			m.tasksViewHandler(msg, db)
 		case newTask:
-			switch {
-			case key.Matches(msg, keys.DefaultKeyMap.Confirm):
-				m.title.Blur()
-
-				if m.title.Value() == "" {
-					m.title.Focus()
-					return tea.Batch(cmds...)
-				}
-
-				now := time.Now()
-
-				m.current.ID = time.Now().UnixMicro()
-				m.current.Title = m.title.Value()
-				m.current.CreatedAt = now
-				m.current.LastModified = now
-
-				if err := m.save(db); err != nil {
-					m.err = err
-				}
-
-				if err := m.refresh(db); err != nil {
-					m.err = err
-				}
-
-				m.clearValues()
-
-				m.focus[listDates] = 0
-				m.focus[viewTasks] = 0
-
-				m.mode = listDates
-			case key.Matches(msg, keys.DefaultKeyMap.Esc):
-				m.mode = viewTasks
-			}
+			m.newTaskHandler(msg, db)
 		case editTask:
-			switch {
-			case key.Matches(msg, keys.DefaultKeyMap.NextElement):
-				switch {
-				case m.title.Focused():
-					m.title.Blur()
-					m.description.Focus()
-				case m.description.Focused():
-					m.title.Focus()
-					m.description.Blur()
-				}
-			case key.Matches(msg, keys.DefaultKeyMap.SaveItem):
-				m.title.Blur()
-				m.description.Blur()
-
-				clock := time.Now()
-
-				m.current.Title = m.title.Value()
-				m.current.Description = m.description.Value()
-				m.current.LastModified = clock
-
-				if err := m.save(db); err != nil {
-					m.err = err
-				}
-
-				m.clearValues()
-				if err := m.refresh(db); err != nil {
-					m.err = err
-				}
-
-				m.mode = viewTasks
-			case key.Matches(msg, keys.DefaultKeyMap.Esc):
-				m.mode = viewTasks
-			}
+			m.editTaskHandler(msg, db)
 		}
 	}
 
 	return tea.Batch(cmds...)
+}
+
+func (m *Model) sideBarHandler(msg tea.KeyPressMsg) {
+	switch {
+	case key.Matches(msg, tdlKeyMap.newTask):
+		m.current = store.Task{}
+
+		m.prepareInput()
+
+		m.mode = newTask
+	case key.Matches(msg, keys.DefaultKeyMap.Up):
+		if m.focus[sideBar] > 0 {
+			m.focus[sideBar]--
+		}
+	case key.Matches(msg, keys.DefaultKeyMap.Down):
+		if m.focus[sideBar] < len(m.dates)-1 {
+			m.focus[sideBar]++
+		}
+	case key.Matches(msg, keys.DefaultKeyMap.Right, keys.DefaultKeyMap.Confirm):
+		currDate := m.dates[m.focus[sideBar]]
+
+		if len(m.tasks[currDate]) != 0 {
+			m.current = m.tasks[currDate][0]
+			m.focus[tasksView] = 0
+			m.mode = tasksView
+		}
+	}
+}
+
+func (m *Model) tasksViewHandler(msg tea.KeyPressMsg, db *store.DB) {
+	currDate := m.dates[m.focus[sideBar]]
+	switch {
+	case key.Matches(msg, keys.DefaultKeyMap.Up):
+		if m.focus[tasksView] > 0 {
+			m.focus[tasksView]--
+			m.current = m.tasks[currDate][m.focus[tasksView]]
+			m.syncViewport()
+		}
+	case key.Matches(msg, keys.DefaultKeyMap.Down):
+		if m.focus[tasksView] < len(m.tasks[currDate])-1 {
+			m.focus[tasksView]++
+			m.current = m.tasks[currDate][m.focus[tasksView]]
+			m.syncViewport()
+		}
+	case key.Matches(msg, tdlKeyMap.markTask):
+		m.current.IsDone = !m.current.IsDone
+
+		if err := m.save(db); err != nil {
+			m.err = err
+		}
+
+		if err := m.refresh(db); err != nil {
+			m.err = err
+		}
+
+		currDate = m.dates[m.focus[sideBar]]
+		m.current = m.tasks[currDate][m.focus[tasksView]]
+
+	case key.Matches(msg, tdlKeyMap.editTask):
+		m.current = m.tasks[currDate][m.focus[tasksView]]
+
+		m.prepareInput()
+
+		m.mode = editTask
+	case key.Matches(msg, keys.DefaultKeyMap.Left, keys.DefaultKeyMap.Esc):
+		m.current = store.Task{}
+
+		m.mode = sideBar
+	}
+}
+
+func (m *Model) newTaskHandler(msg tea.KeyPressMsg, db *store.DB) {
+	switch {
+	case key.Matches(msg, keys.DefaultKeyMap.Confirm):
+		m.title.Blur()
+
+		if m.title.Value() == "" {
+			m.err = errors.New("title cannot be empty")
+			m.title.Focus()
+			return
+		}
+
+		now := time.Now()
+
+		m.current.ID = time.Now().UnixMicro()
+		m.current.Title = m.title.Value()
+		m.current.CreatedAt = now
+		m.current.LastModified = now
+
+		if err := m.save(db); err != nil {
+			m.err = err
+		}
+
+		if err := m.refresh(db); err != nil {
+			m.err = err
+		}
+
+		m.clearValues()
+
+		m.focus[sideBar] = 0
+		m.focus[tasksView] = 0
+
+		m.mode = sideBar
+
+	case key.Matches(msg, keys.DefaultKeyMap.Esc):
+		m.mode = sideBar
+	}
+}
+
+func (m *Model) editTaskHandler(msg tea.KeyPressMsg, db *store.DB) {
+	switch {
+	case key.Matches(msg, keys.DefaultKeyMap.NextElement):
+		switch {
+		case m.title.Focused():
+			m.title.Blur()
+			m.description.Focus()
+		case m.description.Focused():
+			m.title.Focus()
+			m.description.Blur()
+		}
+	case key.Matches(msg, tdlKeyMap.saveTask):
+		m.title.Blur()
+		m.description.Blur()
+
+		clock := time.Now()
+
+		if m.title.Value() == "" {
+			m.err = errors.New("title cannot be empty")
+			m.title.SetValue(m.current.Title)
+			m.title.Focus()
+			return
+		}
+
+		m.current.Title = m.title.Value()
+		m.current.Description = m.description.Value()
+		m.current.LastModified = clock
+
+		if err := m.save(db); err != nil {
+			m.err = err
+		}
+
+		m.clearValues()
+		if err := m.refresh(db); err != nil {
+			m.err = err
+		}
+
+		m.mode = tasksView
+	case key.Matches(msg, keys.DefaultKeyMap.Esc):
+		m.mode = tasksView
+	}
 }
 
 func (m *Model) View() string {
@@ -247,7 +273,7 @@ func (m *Model) renderSideBar() string {
 	builder := new(strings.Builder)
 
 	for i, date := range m.dates {
-		if m.focus[listDates] == i {
+		if m.focus[sideBar] == i {
 			builder.WriteString(stringNewLine(m.style.sidebarFocused.Render(getDateString(date))))
 			continue
 		}
@@ -258,7 +284,7 @@ func (m *Model) renderSideBar() string {
 }
 
 func (m *Model) renderTasksMenu() string {
-	date := m.dates[m.focus[listDates]]
+	date := m.dates[m.focus[sideBar]]
 
 	if m.mode == newTask {
 		return m.style.tasksMenu.Render(m.style.inputField.Render(m.title.View()))
@@ -287,7 +313,7 @@ func (m *Model) renderTasksMenu() string {
 			done = "x"
 		}
 		lineFormat := fmt.Sprintf("[%s] %s", done, task.Title)
-		if m.mode == viewTasks && m.focus[viewTasks] == i {
+		if m.mode == tasksView && m.focus[tasksView] == i {
 			builder.WriteString(stringNewLine(m.style.taskFocused.Render(lineFormat)))
 			continue
 
@@ -302,7 +328,7 @@ func (m *Model) renderTasksMenu() string {
 }
 
 func (m *Model) renderDetailsMenu() string {
-	if m.mode != viewTasks {
+	if m.mode != tasksView {
 		return m.style.detailsMenu.BorderLeft(false).Render("")
 	}
 
@@ -314,13 +340,15 @@ func (m *Model) renderDetailsMenu() string {
 		),
 	)
 
-	if m.current.Description == "" {
-		m.current.Description = "(empty description)"
+	description := m.current.Description
+
+	if description == "" {
+		description = "(empty description)"
 	}
 
 	body := m.style.detailsBody.Render(
 		lipgloss.Wrap(
-			m.current.Description,
+			description,
 			m.style.detailsBody.GetWidth(),
 			" ",
 		),
@@ -352,14 +380,14 @@ func (m *Model) renderDetailsMenu() string {
 	))
 }
 
-func (m *Model) refresh(db *inventory.Inventory) error {
+func (m *Model) refresh(db *store.DB) error {
 	data, err := db.GetTasks()
 	if err != nil {
 		return err
 	}
 
 	if m.tasks == nil {
-		m.tasks = make(map[time.Time][]inventory.Task)
+		m.tasks = make(map[time.Time][]store.Task)
 	}
 
 	clear(m.tasks)
@@ -370,7 +398,7 @@ func (m *Model) refresh(db *inventory.Inventory) error {
 
 	today := truncDate(time.Now())
 	if _, ok := m.tasks[today]; !ok {
-		m.tasks[today] = make([]inventory.Task, 0)
+		m.tasks[today] = make([]store.Task, 0)
 	}
 
 	m.dates = slices.Collect(maps.Keys(m.tasks))
@@ -389,7 +417,7 @@ func (m *Model) prepareInput() {
 	m.description.Blur()
 }
 
-func (m *Model) save(db *inventory.Inventory) error {
+func (m *Model) save(db *store.DB) error {
 	if err := db.SaveTask(m.current); err != nil {
 		return err
 	}
@@ -400,7 +428,7 @@ func (m *Model) save(db *inventory.Inventory) error {
 func (m *Model) syncViewport() {
 	vpHeight := m.tasksViewPort.Height()
 	offset := m.tasksViewPort.YOffset()
-	focus := m.focus[viewTasks]
+	focus := m.focus[tasksView]
 
 	if focus < offset {
 		m.tasksViewPort.SetYOffset(focus)

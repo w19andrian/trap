@@ -1,4 +1,5 @@
-package inventory
+// Package store manages persistence for trap using SQLite
+package store
 
 import (
 	"database/sql"
@@ -36,34 +37,34 @@ const schema = `
 	)
 	`
 
-type Inventory struct {
+type DB struct {
 	db *sql.DB
 }
 
-func Init(dbPath string) (*Inventory, error) {
+func Init(dbPath string) (*DB, error) {
 	dsn := dbPath + "?_journal_mode=WAL&_busy_timeout=5000&_synchronous=NORMAL&_cache_size=-64000&_foreign_keys=ON"
 
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
-		return &Inventory{}, fmt.Errorf("error opening database %s: %w", dbPath, err)
+		return &DB{}, fmt.Errorf("error opening database %s: %w", dbPath, err)
 	}
 
 	if err := db.Ping(); err != nil {
-		return &Inventory{}, fmt.Errorf("error connecting to database %s: %w", dbPath, err)
+		return &DB{}, fmt.Errorf("error connecting to database %s: %w", dbPath, err)
 	}
 
-	return &Inventory{
+	return &DB{
 		db: db,
 	}, nil
 }
 
-func (c *Inventory) Migrate() error {
+func (c *DB) Migrate() error {
 	if _, err := c.db.Exec(schema); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *Inventory) Close() error {
+func (c *DB) Close() error {
 	return c.db.Close()
 }
