@@ -41,7 +41,7 @@ type Model struct {
 	current store.Task
 	focus   map[focusMode]int
 	err     error
-	style   *Styles
+	style   *Style
 
 	tasksViewPort viewport.Model
 

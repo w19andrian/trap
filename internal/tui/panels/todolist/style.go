@@ -6,7 +6,7 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-type Styles struct {
+type Style struct {
 	colorBorder  color.Color
 	colorFgFocus color.Color
 	colorbgFocus color.Color
@@ -30,8 +30,8 @@ type Styles struct {
 	detailsFooter lipgloss.Style
 }
 
-func DefaultStyle() *Styles {
-	s := new(Styles)
+func DefaultStyle() *Style {
+	s := new(Style)
 
 	s.refresh()
 	return s
@@ -47,7 +47,7 @@ func (m *Model) UpdateStyle(h, w int) {
 	m.tasksViewPort.SetHeight(m.style.tasksMenu.GetHeight() - m.style.tasksMenu.GetVerticalFrameSize())
 }
 
-func (s *Styles) refresh() {
+func (s *Style) refresh() {
 	s.colorBorder = lipgloss.Color("#5D92D4")
 
 	s.colorbgFocus = lipgloss.Color("#FFFFFF")
