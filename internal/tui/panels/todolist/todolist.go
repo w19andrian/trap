@@ -156,7 +156,6 @@ func (m *Model) sideBarHandler(msg tea.KeyPressMsg, db *store.DB) {
 
 		if len(m.tasks[currMenu]) != 0 {
 			m.current = m.tasks[currMenu][m.focus[tasksView]]
-			// m.focus[tasksView] = 0
 			m.mode = tasksView
 		}
 	}
