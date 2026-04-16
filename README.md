@@ -16,8 +16,9 @@ A terminal UI (TUI) app that combines productivity tools with a radio player
 - [x] todolist page wireframe
 - [x] basic todolist functionality
 - [x] restructure codebase
+- [x] sidebar with filter mode(today,all,finished,unfinished) instead of list of dates
+- [ ] dynamic panel size
 - [ ] add keymap info in header
-- [ ] sidebar with filter mode(today,all,finished,unfinished) instead of list of dates
 - [ ] fix clippping when window is resized
 - [ ] anything else can be included into header?
 - [ ] mpv interface

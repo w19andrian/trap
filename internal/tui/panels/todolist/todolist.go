@@ -4,8 +4,6 @@ package todolist
 import (
 	"errors"
 	"fmt"
-	"maps"
-	"slices"
 	"strings"
 	"time"
 
@@ -20,14 +18,34 @@ import (
 	"repo.home.wmpandrian.dev/wmp/trap/internal/tui/keys"
 )
 
-type focusMode string
+type focusMode int
 
 const (
-	sideBar   focusMode = "list-dates"
-	tasksView focusMode = "view-task"
-	editTask  focusMode = "edit-task"
-	newTask   focusMode = "new-task"
+	sideBar focusMode = iota
+	tasksView
+	editTask
+	newTask
 )
+
+type sideBarMenu string
+
+const (
+	filterToday   sideBarMenu = "Today"
+	filterAll     sideBarMenu = "All"
+	filterDone    sideBarMenu = "Done"
+	filterPending sideBarMenu = "Pending"
+)
+
+func getMenus() []sideBarMenu {
+	return []sideBarMenu{
+		filterToday,
+		filterAll,
+		filterDone,
+		filterPending,
+	}
+}
+
+func (s sideBarMenu) String() string { return string(s) }
 
 type inputField struct {
 	title       textinput.Model
@@ -36,8 +54,8 @@ type inputField struct {
 
 type Model struct {
 	mode    focusMode
-	dates   []time.Time
-	tasks   map[time.Time][]store.Task
+	menus   []sideBarMenu
+	tasks   map[sideBarMenu][]store.Task
 	current store.Task
 	focus   map[focusMode]int
 	err     error
@@ -51,18 +69,19 @@ type Model struct {
 func InitToDoList(db *store.DB) (*Model, error) {
 	m := new(Model)
 
-	if err := m.refresh(db); err != nil {
-		return m, err
-	}
-
 	m.focus = make(map[focusMode]int)
+
 	m.mode = sideBar
+
+	m.menus = getMenus()
+
+	m.tasks = make(map[sideBarMenu][]store.Task)
 
 	m.style = DefaultStyle()
 
 	m.title = textinput.New()
-	m.title.CharLimit = 100
-	m.title.SetWidth(m.style.inputField.GetWidth())
+	m.title.CharLimit = 75
+	m.title.SetWidth(m.style.inputField.GetWidth() - m.style.inputField.GetHorizontalFrameSize())
 	m.title.Placeholder = "New title for your to-do-list"
 	m.title.Prompt = ""
 
@@ -72,6 +91,10 @@ func InitToDoList(db *store.DB) (*Model, error) {
 	m.description.SetWidth(m.style.inputField.GetWidth() - m.style.inputField.GetHorizontalFrameSize())
 
 	m.tasksViewPort = viewport.New()
+
+	if err := m.loadTasks(db); err != nil {
+		return m, err
+	}
 
 	return m, nil
 }
@@ -97,7 +120,7 @@ func (m *Model) Update(msg tea.Msg, db *store.DB) tea.Cmd {
 	case tea.KeyPressMsg:
 		switch m.mode {
 		case sideBar:
-			m.sideBarHandler(msg)
+			m.sideBarHandler(msg, db)
 		case tasksView:
 			m.tasksViewHandler(msg, db)
 		case newTask:
@@ -110,7 +133,7 @@ func (m *Model) Update(msg tea.Msg, db *store.DB) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-func (m *Model) sideBarHandler(msg tea.KeyPressMsg) {
+func (m *Model) sideBarHandler(msg tea.KeyPressMsg, db *store.DB) {
 	switch {
 	case key.Matches(msg, tdlKeyMap.newTask):
 		m.current = store.Task{}
@@ -121,57 +144,56 @@ func (m *Model) sideBarHandler(msg tea.KeyPressMsg) {
 	case key.Matches(msg, keys.DefaultKeyMap.Up):
 		if m.focus[sideBar] > 0 {
 			m.focus[sideBar]--
+			m.refreshTasks(db)
 		}
 	case key.Matches(msg, keys.DefaultKeyMap.Down):
-		if m.focus[sideBar] < len(m.dates)-1 {
+		if m.focus[sideBar] < len(m.menus)-1 {
 			m.focus[sideBar]++
+			m.refreshTasks(db)
 		}
 	case key.Matches(msg, keys.DefaultKeyMap.Right, keys.DefaultKeyMap.Confirm):
-		currDate := m.dates[m.focus[sideBar]]
+		currMenu := m.menus[m.focus[sideBar]]
 
-		if len(m.tasks[currDate]) != 0 {
-			m.current = m.tasks[currDate][0]
-			m.focus[tasksView] = 0
+		if len(m.tasks[currMenu]) != 0 {
+			m.current = m.tasks[currMenu][m.focus[tasksView]]
+			// m.focus[tasksView] = 0
 			m.mode = tasksView
 		}
 	}
 }
 
 func (m *Model) tasksViewHandler(msg tea.KeyPressMsg, db *store.DB) {
-	currDate := m.dates[m.focus[sideBar]]
+	currMenu := m.menus[m.focus[sideBar]]
+
 	switch {
 	case key.Matches(msg, keys.DefaultKeyMap.Up):
 		if m.focus[tasksView] > 0 {
 			m.focus[tasksView]--
-			m.current = m.tasks[currDate][m.focus[tasksView]]
+			m.current = m.tasks[currMenu][m.focus[tasksView]]
 			m.syncViewport()
 		}
+
 	case key.Matches(msg, keys.DefaultKeyMap.Down):
-		if m.focus[tasksView] < len(m.tasks[currDate])-1 {
+		if m.focus[tasksView] < len(m.tasks[currMenu])-1 {
 			m.focus[tasksView]++
-			m.current = m.tasks[currDate][m.focus[tasksView]]
+			m.current = m.tasks[currMenu][m.focus[tasksView]]
 			m.syncViewport()
 		}
+
 	case key.Matches(msg, tdlKeyMap.markTask):
 		m.current.IsDone = !m.current.IsDone
 
-		if err := m.save(db); err != nil {
-			m.err = err
-		}
+		m.save(db)
 
-		if err := m.refresh(db); err != nil {
-			m.err = err
-		}
-
-		currDate = m.dates[m.focus[sideBar]]
-		m.current = m.tasks[currDate][m.focus[tasksView]]
+		m.refreshTasks(db)
 
 	case key.Matches(msg, tdlKeyMap.editTask):
-		m.current = m.tasks[currDate][m.focus[tasksView]]
+		m.current = m.tasks[currMenu][m.focus[tasksView]]
 
 		m.prepareInput()
 
 		m.mode = editTask
+
 	case key.Matches(msg, keys.DefaultKeyMap.Left, keys.DefaultKeyMap.Esc):
 		m.current = store.Task{}
 
@@ -197,18 +219,14 @@ func (m *Model) newTaskHandler(msg tea.KeyPressMsg, db *store.DB) {
 		m.current.CreatedAt = now
 		m.current.LastModified = now
 
-		if err := m.save(db); err != nil {
-			m.err = err
-		}
-
-		if err := m.refresh(db); err != nil {
-			m.err = err
-		}
+		m.save(db)
 
 		m.clearValues()
 
 		m.focus[sideBar] = 0
 		m.focus[tasksView] = 0
+
+		m.refreshTasks(db)
 
 		m.mode = sideBar
 
@@ -224,10 +242,12 @@ func (m *Model) editTaskHandler(msg tea.KeyPressMsg, db *store.DB) {
 		case m.title.Focused():
 			m.title.Blur()
 			m.description.Focus()
+
 		case m.description.Focused():
 			m.title.Focus()
 			m.description.Blur()
 		}
+
 	case key.Matches(msg, tdlKeyMap.saveTask):
 		m.title.Blur()
 		m.description.Blur()
@@ -245,16 +265,14 @@ func (m *Model) editTaskHandler(msg tea.KeyPressMsg, db *store.DB) {
 		m.current.Description = m.description.Value()
 		m.current.LastModified = clock
 
-		if err := m.save(db); err != nil {
-			m.err = err
-		}
+		m.save(db)
 
 		m.clearValues()
-		if err := m.refresh(db); err != nil {
-			m.err = err
-		}
+
+		m.refreshTasks(db)
 
 		m.mode = tasksView
+
 	case key.Matches(msg, keys.DefaultKeyMap.Esc):
 		m.mode = tasksView
 	}
@@ -272,19 +290,19 @@ func (m *Model) View() string {
 func (m *Model) renderSideBar() string {
 	builder := new(strings.Builder)
 
-	for i, date := range m.dates {
+	for i, menu := range m.menus {
 		if m.focus[sideBar] == i {
-			builder.WriteString(stringNewLine(m.style.sidebarFocused.Render(getDateString(date))))
+			builder.WriteString(stringNewLine(m.style.sidebarFocused.Render(menu.String())))
 			continue
 		}
 
-		builder.WriteString(stringNewLine(getDateString(date)))
+		builder.WriteString(stringNewLine(menu.String()))
 	}
 	return m.style.sidebar.Render(builder.String())
 }
 
 func (m *Model) renderTasksMenu() string {
-	date := m.dates[m.focus[sideBar]]
+	menu := m.menus[m.focus[sideBar]]
 
 	if m.mode == newTask {
 		return m.style.tasksMenu.Render(m.style.inputField.Render(m.title.View()))
@@ -298,16 +316,16 @@ func (m *Model) renderTasksMenu() string {
 		))
 	}
 
-	if len(m.tasks[date]) == 0 {
+	if len(m.tasks[menu]) == 0 {
 		return m.style.tasksMenu.
 			Width(m.style.tasksMenu.GetWidth() + m.style.detailsMenu.GetWidth()).
 			AlignVertical(lipgloss.Center).
 			AlignHorizontal(lipgloss.Center).
-			Render("No tasks for today. Press 'n' to create new task")
+			Render("No tasks for today. Chill day?")
 	}
 
 	builder := new(strings.Builder)
-	for i, task := range m.tasks[date] {
+	for i, task := range m.tasks[menu] {
 		done := " "
 		if task.IsDone {
 			done = "x"
@@ -340,19 +358,17 @@ func (m *Model) renderDetailsMenu() string {
 		),
 	)
 
-	description := m.current.Description
-
-	if description == "" {
-		description = "(empty description)"
-	}
-
 	body := m.style.detailsBody.Render(
 		lipgloss.Wrap(
-			description,
+			m.current.Description,
 			m.style.detailsBody.GetWidth(),
 			" ",
 		),
 	)
+
+	if m.current.Description == "" {
+		body = ""
+	}
 
 	builder := new(strings.Builder)
 
@@ -380,31 +396,44 @@ func (m *Model) renderDetailsMenu() string {
 	))
 }
 
-func (m *Model) refresh(db *store.DB) error {
+func (m *Model) loadTasks(db *store.DB) error {
 	data, err := db.GetTasks()
 	if err != nil {
 		return err
 	}
 
 	if m.tasks == nil {
-		m.tasks = make(map[time.Time][]store.Task)
+		m.tasks = make(map[sideBarMenu][]store.Task)
 	}
 
 	clear(m.tasks)
 
+	currMenu := m.menus[m.focus[sideBar]]
+
 	for _, task := range data {
-		m.tasks[truncDate(task.CreatedAt)] = append(m.tasks[truncDate(task.CreatedAt)], task)
+		switch {
+		case currMenu == filterToday && truncDate(task.CreatedAt).Equal(truncDate(time.Now())):
+			m.tasks[filterToday] = append(m.tasks[filterToday], task)
+		case currMenu == filterDone && task.IsDone:
+			m.tasks[currMenu] = append(m.tasks[currMenu], task)
+		case currMenu == filterPending && !task.IsDone:
+			m.tasks[currMenu] = append(m.tasks[currMenu], task)
+		case currMenu == filterAll:
+			m.tasks[currMenu] = append(m.tasks[currMenu], task)
+		}
 	}
 
-	today := truncDate(time.Now())
-	if _, ok := m.tasks[today]; !ok {
-		m.tasks[today] = make([]store.Task, 0)
+	if _, ok := m.tasks[filterToday]; !ok {
+		m.tasks[filterToday] = make([]store.Task, 0)
 	}
-
-	m.dates = slices.Collect(maps.Keys(m.tasks))
-	sortDatesDesc(m.dates)
 
 	return nil
+}
+
+func (m *Model) refreshTasks(db *store.DB) {
+	if err := m.loadTasks(db); err != nil {
+		m.err = err
+	}
 }
 
 func (m *Model) prepareInput() {
@@ -417,12 +446,10 @@ func (m *Model) prepareInput() {
 	m.description.Blur()
 }
 
-func (m *Model) save(db *store.DB) error {
+func (m *Model) save(db *store.DB) {
 	if err := db.SaveTask(m.current); err != nil {
-		return err
+		m.err = err
 	}
-
-	return nil
 }
 
 func (m *Model) syncViewport() {
@@ -446,22 +473,8 @@ func truncDate(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 }
 
-func sortDatesDesc(t []time.Time) {
-	slices.SortFunc(t, func(a, b time.Time) int { return a.Compare(b) })
-	slices.Reverse(t)
-}
-
-func getDateString(t time.Time) string {
-	today := truncDate(time.Now())
-
-	switch {
-	case t.Equal(today):
-		return "today"
-	}
-	return t.Format("02 Jan 2006")
-}
-
 func getDateTimeString(t time.Time) string {
 	return t.Format(time.RFC822)
 }
+
 func stringNewLine(s string) string { return fmt.Sprintf("%s\n", s) }
